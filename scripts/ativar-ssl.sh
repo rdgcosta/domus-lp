@@ -4,36 +4,56 @@
 
 DOMAIN="domusitalinea.com.br"
 
-echo "🔒 Ativando configuração SSL..."
+echo "🔒 Ativando SSL no nginx..."
 
 # Verificar se certificado existe
-if docker compose exec nginx test -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem; then
+if docker compose exec nginx test -f /etc/letsencrypt/live/$DOMAIN/fullchain.pem 2>/dev/null; then
     echo "✅ Certificado encontrado"
-    
-    # Parar nginx
-    docker compose stop nginx
-    
-    # Trocar configuração
-    docker compose run --rm --entrypoint "sh" nginx -c "
-        cd /etc/nginx/conf.d
-        if [ -f default-ssl.conf ]; then
-            rm -f default.conf
-            cp default-ssl.conf default.conf
-            echo '✅ Configuração SSL ativada'
-        else
-            echo '❌ Arquivo default-ssl.conf não encontrado'
-            exit 1
-        fi
-    "
-    
-    # Reiniciar nginx
-    docker compose up -d nginx
-    
-    echo "✅ SSL ativado! Nginx reiniciado."
-    echo "🌐 Acesse: https://$DOMAIN"
 else
     echo "❌ Certificado SSL não encontrado!"
     echo "📝 Primeiro gere o certificado com:"
-    echo "   docker compose run --rm certbot certonly --webroot --webroot-path=/var/www/certbot --email seu-email@exemplo.com --agree-tos --no-eff-email -d $DOMAIN -d www.$DOMAIN"
+    echo "   ./scripts/gerar-ssl.sh"
     exit 1
 fi
+
+# Parar nginx
+echo "⏳ Parando nginx..."
+docker compose stop nginx
+
+# Modificar arquivo local
+cd "$(dirname "$0")/.."
+
+if [ -f nginx/conf.d/default-ssl.conf ]; then
+    echo "📝 Aplicando configuração SSL..."
+    rm -f nginx/conf.d/default.conf
+    cp nginx/conf.d/default-ssl.conf nginx/conf.d/default.conf
+    
+    # Verificar se foi aplicado
+    if grep -q "ssl_certificate" nginx/conf.d/default.conf; then
+        echo "✅ Configuração SSL aplicada"
+    else
+        echo "❌ Erro ao aplicar configuração SSL"
+        exit 1
+    fi
+else
+    echo "❌ Arquivo nginx/conf.d/default-ssl.conf não encontrado"
+    exit 1
+fi
+
+# Reiniciar nginx
+echo "🔄 Reiniciando nginx..."
+docker compose up -d nginx
+
+# Aguardar um pouco
+sleep 3
+
+# Verificar logs
+echo "📋 Verificando logs..."
+docker compose logs nginx --tail 20
+
+echo ""
+echo "✅ SSL ativado!"
+echo "🌐 Acesse: https://$DOMAIN"
+echo ""
+echo "📝 Para renovar certificado automaticamente, adicione ao crontab:"
+echo "   0 3 * * * cd ~/domus-lp && docker compose run --rm certbot renew && docker compose exec nginx nginx -s reload"
