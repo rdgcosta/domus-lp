@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import StructuredData from "@/components/SEO/StructuredData";
+import GoogleTagManager from "@/components/analytics/GoogleTagManager";
 
 // Usando fonte do sistema como fallback
 // A fonte Poppins será carregada via CSS quando houver conexão
@@ -36,6 +37,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className="font-filson antialiased">
+        <GoogleTagManager />
         <StructuredData />
         {children}
       </body>
