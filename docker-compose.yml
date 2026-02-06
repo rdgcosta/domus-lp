@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_GTM_ID=${NEXT_PUBLIC_GTM_ID:-}
     container_name: domus-italinea-app
     restart: unless-stopped
     networks:

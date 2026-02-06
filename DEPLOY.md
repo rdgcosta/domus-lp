@@ -1,118 +1,112 @@
-# 🚀 Guia de Deploy - Domus Italínea
+# 🚀 Deploy - Domus Italínea
 
-## Pré-requisitos
+Guia para colocar o site no ar com Docker (app + Nginx). SSL é opcional e pode ser ativado depois.
 
-- Docker e Docker Compose instalados
-- Domínio configurado apontando para o servidor
-- Portas 80 e 443 liberadas no firewall
+---
 
-## 📋 Passos para Deploy
+## Pré-requisitos no servidor
 
-### 1. Configurar Domínio
+- **Docker** e **Docker Compose** instalados
+- **Git** (para clonar o repositório)
+- Domínio apontando para o IP do servidor (para usar HTTPS depois)
+- Portas **80** e **443** liberadas no firewall
 
-Edite os arquivos de configuração do nginx com seu domínio:
+---
 
-```bash
-# Edite nginx/conf.d/default.conf
-# Substitua domusitalinea.com.br pelo seu domínio
-```
+## 1. Primeira vez (servidor novo)
 
-### 2. Build e Iniciar Containers
+### 1.1 Clonar o projeto
 
 ```bash
-# Build da aplicação
-docker compose build
-
-# Iniciar containers (sem SSL inicialmente)
-docker compose up -d app nginx
+# Exemplo: clonar na pasta do usuário
+cd ~
+git clone <URL_DO_SEU_REPOSITORIO> domus-lp
+cd domus-lp
 ```
 
-### 3. Configurar SSL com Certbot
-
-#### Opção A: Script Automatizado
+### 1.2 Configurar variáveis de ambiente
 
 ```bash
-chmod +x scripts/setup-ssl.sh
-./scripts/setup-ssl.sh
+cp .env.example .env
+nano .env   # ou vim / code
 ```
 
-#### Opção B: Manual
+Preencha pelo menos:
+
+- `NEXT_PUBLIC_GTM_ID=GTM-XXXXXXX` (se usar Google Tag Manager)
+- `DOMAIN=domusitalinea.com.br`
+- `SSL_EMAIL=contato@domusitalinea.com.br` (para Certbot depois)
+
+Salve e feche.
+
+### 1.3 Fazer o deploy
 
 ```bash
-# Solicitar certificado SSL
-docker compose run --rm certbot certonly \
-  --webroot \
-  --webroot-path=/var/www/certbot \
-  --email seu-email@exemplo.com \
-  --agree-tos \
-  --no-eff-email \
-  -d domusitalinea.com.br \
-  -d www.domusitalinea.com.br
-
-# Recarregar nginx
-docker compose exec nginx nginx -s reload
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
 ```
 
-### 4. Iniciar Todos os Serviços
+Isso faz o **build** da aplicação e sobe **app** + **nginx**. O site fica em **HTTP** na porta 80.
+
+### 1.4 (Opcional) Ativar HTTPS
+
+Quando o site já estiver respondendo em HTTP e o DNS estiver apontando para o servidor:
 
 ```bash
-docker compose up -d
+./scripts/gerar-ssl.sh domusitalinea.com.br contato@domusitalinea.com.br
+./scripts/ativar-ssl.sh
 ```
 
-## 🔄 Comandos Úteis
+Detalhes em [ADICIONAR_SSL.md](./ADICIONAR_SSL.md).
 
-### Ver logs
+---
+
+## 2. Atualizações (já tem o projeto no servidor)
+
+Sempre na pasta do projeto:
+
 ```bash
-docker compose logs -f app
-docker compose logs -f nginx
-docker compose logs -f certbot
+cd ~/domus-lp   # ou onde estiver o projeto
+git pull
+./scripts/deploy.sh
 ```
 
-### Reiniciar serviços
+O script faz **build** de novo e sobe os containers. Não é necessário parar manualmente antes.
+
+---
+
+## 3. Comandos úteis
+
+| Ação | Comando |
+|------|--------|
+| Ver logs da aplicação | `docker compose logs -f app` |
+| Ver logs do Nginx | `docker compose logs -f nginx` |
+| Ver status dos containers | `docker compose ps` |
+| Parar tudo | `docker compose down` |
+| Reiniciar só a app | `docker compose restart app` |
+| Rebuild sem cache | `docker compose build --no-cache app` |
+
+---
+
+## 4. Checklist antes do deploy
+
+- [ ] `.env` criado a partir de `.env.example` e preenchido
+- [ ] `NEXT_PUBLIC_GTM_ID` no `.env` se usar GTM (o valor é usado no **build**)
+- [ ] DNS do domínio apontando para o IP do servidor (para SSL depois)
+- [ ] Portas 80 e 443 liberadas no firewall do servidor
+
+---
+
+## 5. Resumo rápido
+
 ```bash
-docker compose restart app
-docker compose restart nginx
+# Primeira vez
+git clone <repo> domus-lp && cd domus-lp
+cp .env.example .env && nano .env
+./scripts/deploy.sh
+
+# Atualização
+cd ~/domus-lp && git pull && ./scripts/deploy.sh
 ```
 
-### Parar serviços
-```bash
-docker compose down
-```
-
-### Renovar certificado SSL manualmente
-```bash
-docker compose run --rm certbot renew
-docker compose exec nginx nginx -s reload
-```
-
-### Rebuild após mudanças
-```bash
-docker compose build app
-docker compose up -d app
-```
-
-## 🔒 Renovação Automática de SSL
-
-O Certbot está configurado para renovar automaticamente os certificados a cada 12 horas. O nginx recarrega automaticamente após renovações.
-
-## 📝 Notas Importantes
-
-1. **Primeira vez**: Use `default-ssl.conf` temporariamente para obter o certificado
-2. **Após SSL**: Certifique-se de que `default.conf` está ativo
-3. **Domínio**: Certifique-se de que o DNS está apontando para o servidor antes de solicitar o certificado
-4. **Email**: Use um email válido para receber notificações de renovação
-
-## 🐛 Troubleshooting
-
-### Certificado não gerado
-- Verifique se o domínio está apontando para o servidor
-- Verifique se as portas 80 e 443 estão acessíveis
-- Verifique os logs: `docker compose logs certbot`
-
-### Nginx não inicia
-- Verifique a sintaxe: `docker compose exec nginx nginx -t`
-- Verifique os logs: `docker compose logs nginx`
-
-### App não responde
-- Verifique se o app está rodando: `docker compose ps`
-- Verifique os logs: `docker compose logs app`
+Depois, se quiser HTTPS: `./scripts/gerar-ssl.sh` e `./scripts/ativar-ssl.sh`.
